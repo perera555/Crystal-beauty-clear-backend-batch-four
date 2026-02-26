@@ -6,6 +6,8 @@ import jwt from 'jsonwebtoken'
 import prodductRouter from './routes/productRoute.js';
 import verifyJWT from './middleware/auth.js';
 import orderRouter from './routes/orderRoute.js';
+import dotenv from 'dotenv'
+dotenv.config()
 
 
 const app = express();
@@ -13,7 +15,7 @@ app.use(bodyParser.json());
 
 app.use(verifyJWT)
 
-mongoose.connect("mongodb+srv://admin:123@cluster0.d78l82j.mongodb.net/?appName=Cluster0")
+mongoose.connect(process.env.MONGO_URL)
     .then(
         () => {
             console.log("Connect to the Database Successfully")
