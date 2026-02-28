@@ -3,7 +3,8 @@ import bodyParser from 'body-parser';
 import mongoose from 'mongoose';
 import userRouter from './routes/userRouter.js';
 import jwt from 'jsonwebtoken'
-import prodductRouter from './routes/productRoute.js';
+import productRouter from './routes/productRoute.js';
+
 import verifyJWT from './middleware/auth.js';
 import orderRouter from './routes/orderRoute.js';
 import dotenv from 'dotenv'
@@ -30,7 +31,7 @@ mongoose.connect(process.env.MONGO_URL)
     )
 
 app.use("/api/user", userRouter)
-app.use("/api/product", prodductRouter)
+app.use("/api/product", productRouter)
 app.use("/api/order",orderRouter )
 
 app.listen(5000, () => {
