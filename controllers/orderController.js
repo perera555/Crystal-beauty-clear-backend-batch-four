@@ -1,6 +1,7 @@
 import Order from "../models/order.js";
+import Product from "../models/product.js"
 
-export function createOrder(req, res) {
+export async function createOrder(req, res) {
 
     if (req.user == null) {
         res.status(403).json({
@@ -26,7 +27,7 @@ export function createOrder(req, res) {
     Order.find().sort({
         date: -1
 
-    }).limit(1).then((lastBills) => {
+    }).limit(1).then(async (lastBills) => {
         if (lastBills.length == 0) {   //if no order exist in database//first order id will be ORD0001
             orderData.orderId = "ORD0001"
         } else {
@@ -39,8 +40,24 @@ export function createOrder(req, res) {
             orderData.orderId = "ORD" + newOrderNumberString; //combine "ORD" with new order number to get new order id "ORD0064"
         }
         for (let i = 0; i < body.billItems.length; i++) {
-            const billItem = body.billItems[i];
-            
+            const product = await Product.findOne({ productId: body.billItems[i].productId })
+            if (product == null) {
+                res.status(404).json({
+                    message: "Product with product ID" + body.billItems[i].productId + "not Found"
+                })
+                return;
+            }
+            orderData.billItems[i] = {
+                productId: product.productId,
+                productName: product.name,
+                image: product.images[0],
+                quantity: body.billItems[i].quantity,
+                price: product.price
+
+
+            }
+            orderData.total = orderData.total + product.price * body.billItems[i].quantity
+
         }
 
         const order = new Order(orderData) //create order object with order data
@@ -65,36 +82,36 @@ export function createOrder(req, res) {
 }
 
 export function getOrders(req, res) {
-    if(req.user == null){
+    if (req.user == null) {
         res.status(403).json({
-            message:"unauthorized access"
+            message: "unauthorized access"
         })
         return
     }
-    if(req.user.role == "admin"){
-        Order.find().then((orders)=>{
+    if (req.user.role == "admin") {
+        Order.find().then((orders) => {
             res.status(200).json({
-                message:"Orders Fetched Successfully",
+                message: "Orders Fetched Successfully",
                 orders: orders
             })
-        }).catch((error)=>{
+        }).catch((error) => {
             res.status(500).json({
-                message:"Error to Fetch Orders"
+                message: "Error to Fetch Orders"
             })
         })
 
-}else{
-    Order.find({
-        email: req.user.email
-    }).then((orders)=>{
-        res.status(200).json({
-            message:"Orders Fetched Successfully",
-            orders: orders
+    } else {
+        Order.find({
+            email: req.user.email
+        }).then((orders) => {
+            res.status(200).json({
+                message: "Orders Fetched Successfully",
+                orders: orders
+            })
+        }).catch((error) => {
+            res.status(500).json({
+                message: "Error to Fetch Orders"
+            })
         })
-    }).catch((error)=>{
-        res.status(500).json({
-            message:"Error to Fetch Orders"
-        })
-    })
-}
+    }
 }

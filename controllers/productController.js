@@ -5,7 +5,7 @@ export function getProduct(req, res) {
         .then(products => {
             res.status(200).json({
                 message: "Products retrieved successfully",
-                products: products   // ✅ keep same structure
+                products: products   
             })
         })
         .catch(err => {
@@ -14,6 +14,21 @@ export function getProduct(req, res) {
                 error: err.message
             })
         })
+}
+export async function getProductById(req, res) {
+    const productId = req.params.id
+
+    const product = await Product.findOne({ productId: productId })
+
+    if (!product) {
+        return res.status(404).json({
+            message: "Product not found"
+        })
+    }
+
+    res.status(200).json({
+        product: product
+    })
 }
 
 export async function createProduct(req, res) {
