@@ -115,3 +115,47 @@ export function getOrders(req, res) {
         })
     }
 }
+export async function updateOrder(req, res) {
+    try {
+
+        if (req.user == null) {
+            res.status(401).json({
+                message: "Unauthorized"
+            })
+            return
+        }
+
+        if (req.user.role != "admin") {
+            res.status(403).json({
+                message: "you are not Authorized to update an order"
+            })
+            return
+        }
+
+        const orderId = req.params.orderId
+
+        const order = await Order.findOneAndUpdate(
+            { orderId: orderId },
+            { status: req.body.status },
+            { new: true }
+        )
+
+        if (!order) {
+            res.status(404).json({
+                message: "Order not found"
+            })
+            return
+        }
+
+        res.status(200).json({
+            message: "Order Update Successfully"
+        })
+
+    } catch (error) {
+
+        res.status(500).json({
+            message: "Order not Updated"
+        })
+
+    }
+}

@@ -2,6 +2,7 @@ import User from "../models/user.js";
 import bcrypt from "bcrypt"
 import jwt from 'jsonwebtoken'
 import dotenv from "dotenv"
+import axios from "axios";
 dotenv.config()
 
 export function saveUser(req, res) {
@@ -77,7 +78,9 @@ export function loginUser(req, res) {
                         isDisabled: user.isDisabled,
                         isEmailVerified: user.isEmailedVerified
                     }
-                    const token = jwt.sign(userData, process.env.JWT_KEY)
+                    const token = jwt.sign(userData, process.env.JWT_KEY, {
+                        expiresIn: "48hrs"
+                    })
 
                     res.json({
                         message: "Login Successfully",
@@ -96,4 +99,75 @@ export function loginUser(req, res) {
         })
 
 }
+export async function googleLogin(req, res) {
+    const accessToken = req.body.accessToken;
 
+    try {
+        const response = await axios.get("https://www.googleapis.com/oauth2/v3/userinfo", {
+            headers: {
+                Authorization: "Bearer " + accessToken
+            }
+        })
+
+        const user = await User.findOne({
+            email: response.data.email
+
+        })
+        if (user == null) {
+            const newUser = new User({
+                email: response.data.email,
+                firstName: response.data.given_name,
+                lastName: response.data.family_name,
+                isEmailedVerified: true,
+                password: accessToken
+            })
+            await newUser.save()
+            const userData = {
+                email: response.data.email,
+                firstName: response.data.given_name,
+                lastName: response.data.family_name,
+                isEmailedVerified: true,
+                role: "user",
+                phone: "Not Given",
+                isDisabled: false,
+                isEmailVerified: true
+            }
+            const token = jwt.sign(userData, process.env.JWT_KEY, {
+                expiresIn: "48hrs"
+            })
+
+            res.json({
+                message: "Login Successfully",
+                token: token,
+                user: userData
+            })
+
+        } else {
+            const userData = {
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                role: user.role,
+                phone: user.phone,
+                isDisabled: user.isDisabled,
+                isEmailVerified: user.isEmailedVerified
+            }
+            const token = jwt.sign(userData, process.env.JWT_KEY, {
+                expiresIn: "48hrs"
+            })
+
+            res.json({
+                message: "Login Successfully",
+                token: token,
+                user: userData
+            })
+
+
+        }
+
+    } catch (e) {
+        res.status(500).json({
+            message: "Google login failed"
+        })
+    }
+}
