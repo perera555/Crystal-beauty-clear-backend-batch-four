@@ -171,3 +171,18 @@ export async function googleLogin(req, res) {
         })
     }
 }
+export function getCurrentUser(req, res) {
+
+    if (req.user == null) {
+        return res.status(403).json({
+            message: "Please login to user Details"
+        });
+    }
+
+    res.json({
+        user: req.user
+    });
+}
+    
+
+
