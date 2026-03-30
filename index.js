@@ -1,40 +1,35 @@
-import express from 'express'
-import bodyParser from 'body-parser'
-import mongoose from 'mongoose'
-import userRouter from './routes/userRouter.js'
-import jwt from 'jsonwebtoken'
-import productRouter from './routes/productRoute.js'
-import verifyJWT from './middleware/auth.js'
-import orderRouter from './routes/orderRoute.js'
-import dotenv from 'dotenv'
-import cors from 'cors'
+import express from "express";
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+import cors from "cors";
 
-dotenv.config()
+import userRouter from "./routes/userRouter.js";
+import productRouter from "./routes/productRoute.js";
+import orderRouter from "./routes/orderRoute.js";
+import reviewRouter from "./routes/reviewRouter.js";
+import verifyJWT from "./middleware/auth.js";
 
-const app = express()
+dotenv.config();
 
-app.use(cors())
-app.use(bodyParser.json())
+const app = express();
 
-// DATABASE
+// middleware
+app.use(cors());
+app.use(express.json());
+
+// DB connect
 mongoose.connect(process.env.MONGO_URL)
-.then(()=>{
-    console.log("Connect to the Database Successfully")
-})
-.catch(()=>{
-    console.log("Error to connect to Database")
-})
+  .then(() => console.log("✅ Connected to Database"))
+  .catch(() => console.log("❌ DB Connection Failed"));
 
+// ✅ PUBLIC ROUTES
+app.use("/api/users", userRouter);
 
-// USER ROUTES (NO JWT REQUIRED)
-app.use("/api/user", userRouter)
+// ✅ PROTECTED ROUTES
+app.use("/api/product", verifyJWT, productRouter);
+app.use("/api/order", verifyJWT, orderRouter);
+app.use("/api/reviews", verifyJWT, reviewRouter);
 
-
-// PROTECTED ROUTES
-app.use("/api/product", verifyJWT, productRouter)
-app.use("/api/order", verifyJWT, orderRouter)
-
-
-app.listen(5000, ()=>{
-    console.log("Server running on port 5000")
-})
+app.listen(5000, () => {
+  console.log("🚀 Server running on port 5000");
+});

@@ -4,242 +4,230 @@ import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import axios from "axios";
 import nodemailer from "nodemailer";
+import OTP from "../models/otp.js";
 
 dotenv.config();
 
+// ================= EMAIL =================
 const transport = nodemailer.createTransport({
     service: "gmail",
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     }
 });
 
-export function saveUser(req, res) {
-
-    if (req.body.role == "admin") {
-
-        if (req.user == null) {
-            return res.status(403).json({
-                message: "Please Login to Create Admin User"
-            });
-        }
-
-        if (req.user.role != "admin") {
-            return res.status(403).json({
-                message: "Only Admin User can Create Admin User"
-            });
-        }
-    }
-
-    const hashedPassword = bcrypt.hashSync(req.body.password, 10);
-
-    const user = new User({
-        email: req.body.email,
-        firstName: req.body.firstName,
-        lastName: req.body.lastName,
-        password: hashedPassword,
-        role: req.body.role
-    });
-
-    user.save()
-        .then(() => {
-            res.json({
-                message: "User Saved Successfully"
-            });
-        })
-        .catch(() => {
-            res.status(500).json({
-                message: "Error Saving User"
-            });
-        });
-}
-
-
-
-export function loginUser(req, res) {
-
-    const email = req.body.email;
-    const password = req.body.password;
-
-    User.findOne({ email: email })
-        .then((user) => {
-
-            if (user == null) {
-                return res.status(404).json({
-                    message: "Invalid Email"
-                });
-            }
-
-            const isPasswordCorrect = bcrypt.compareSync(password, user.password);
-
-            if (isPasswordCorrect) {
-
-                const userData = {
-                    email: user.email,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                    role: user.role
-                };
-
-                const token = jwt.sign(userData, process.env.JWT_KEY, {
-                    expiresIn: "48h"
-                });
-
-                res.json({
-                    message: "Login Successfully",
-                    token: token,
-                    user: userData
-                });
-
-            } else {
-
-                res.status(403).json({
-                    message: "Invalid Password"
-                });
-
-            }
-
-        });
-}
-
-
-
-export async function googleLogin(req, res) {
-
-    const accessToken = req.body.accessToken;
-
+// ================= REGISTER =================
+export async function saveUser(req, res) {
     try {
+        const { email, password, firstName, lastName, role } = req.body;
+
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: "User already exists" });
+        }
+
+        // 🔒 Admin protection
+        if (role === "admin") {
+            if (!req.user || req.user.role !== "admin") {
+                return res.status(403).json({
+                    message: "Only admin can create admin users"
+                });
+            }
+        }
+
+        const hashedPassword = bcrypt.hashSync(password, 10);
+
+        const user = new User({
+            email,
+            firstName,
+            lastName,
+            password: hashedPassword,
+            role: role || "user"
+        });
+
+        await user.save();
+
+        res.json({ message: "User registered successfully" });
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+}
+
+// ================= LOGIN =================
+export async function loginUser(req, res) {
+    try {
+        const { email, password } = req.body;
+
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: "Invalid Email" });
+        }
+
+        const isMatch = bcrypt.compareSync(password, user.password);
+
+        if (!isMatch) {
+            return res.status(403).json({ message: "Invalid Password" });
+        }
+
+        const userData = {
+            id: user._id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role
+        };
+
+        const token = jwt.sign(userData, process.env.JWT_KEY, {
+            expiresIn: "48h"
+        });
+
+        res.json({
+            message: "Login successful",
+            token,
+            user: userData
+        });
+
+    } catch (err) {
+        res.status(500).json({ message: "Login error" });
+    }
+}
+
+// ================= GOOGLE LOGIN =================
+export async function googleLogin(req, res) {
+    try {
+        const { accessToken } = req.body;
 
         const response = await axios.get(
             "https://www.googleapis.com/oauth2/v3/userinfo",
             {
                 headers: {
-                    Authorization: "Bearer " + accessToken
+                    Authorization: `Bearer ${accessToken}`
                 }
             }
         );
 
-        const user = await User.findOne({
-            email: response.data.email
-        });
+        const { email, given_name, family_name } = response.data;
 
-        if (user == null) {
+        let user = await User.findOne({ email });
 
-            const newUser = new User({
-                email: response.data.email,
-                firstName: response.data.given_name,
-                lastName: response.data.family_name,
-                password: accessToken
+        if (!user) {
+            user = new User({
+                email,
+                firstName: given_name,
+                lastName: family_name,
+                password: "GOOGLE_USER", // ✅ safe placeholder
+                role: "user",
+                isEmailVerified: true
             });
 
-            await newUser.save();
+            await user.save();
         }
 
+        const userData = {
+            id: user._id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role
+        };
+
+        const token = jwt.sign(userData, process.env.JWT_KEY, {
+            expiresIn: "48h"
+        });
+
         res.json({
-            message: "Google Login Success"
+            message: "Login successful",
+            token,
+            user: userData   // ✅ FIXED
         });
 
-    } catch (e) {
-
+    } catch (err) {
         res.status(500).json({
-            message: "Google login failed"
+            message: "Google login failed",
+            error: err.message
         });
-
     }
 }
 
-
-
+// ================= CURRENT USER =================
 export function getCurrentUser(req, res) {
-
-    if (req.user == null) {
-
-        return res.status(403).json({
-            message: "Please login"
-        });
-
+    if (!req.user) {
+        return res.status(403).json({ message: "Please login" });
     }
 
-    res.json({
-        user: req.user
-    });
+    res.json({ user: req.user });
 }
 
-
-
-export function sendOTP(req, res) {
-
-    const email = req.body.email;
-
-    const otp = Math.floor(Math.random() * 9000) + 1000;
-
-    const message = {
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: "OTP for password reset",
-        text: "Your OTP is : " + otp
-    };
-
-    transport.sendMail(message, (err) => {
-
-        if (err) {
-
-            console.log(err);
-
-            res.status(500).json({
-                message: "Error Sending Email"
-            });
-
-        } else {
-
-            res.json({
-                message: "OTP sent Successfully",
-                otp: otp
-            });
-
-        }
-
-    });
-
-}
-
-
-
-export async function resetPassword(req, res) {
-
-    const email = req.body.email;
-    const password = req.body.password;
-
+// ================= OTP =================
+export async function sendOTP(req, res) {
     try {
+        const { email } = req.body;
 
-        const user = await User.findOne({ email: email });
+        const otp = Math.floor(1000 + Math.random() * 9000);
 
-        if (user == null) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
+        await OTP.create({ email, otp });
 
-        const hashedPassword = bcrypt.hashSync(password, 10);
-
-        user.password = hashedPassword;
-
-        await user.save();
-
-        res.json({
-            message: "Password Reset Successfully"
+        await transport.sendMail({
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: "OTP Code",
+            text: `Your OTP is ${otp}`
         });
 
-    } catch (error) {
+        res.json({ message: "OTP sent" });
 
-        res.status(500).json({
-            message: "Password reset failed"
-        });
-
+    } catch {
+        res.status(500).json({ message: "Email error" });
     }
 }
-//app pw-rcdt kyfa tpcr ovri
+
+// ================= CHANGE PASSWORD =================
+export async function changePassword(req, res) {
+    try {
+        const { email, password, otp } = req.body;
+
+        const lastOTP = await OTP.findOne({ email }).sort({ createdAt: -1 });
+
+        if (!lastOTP || lastOTP.otp != otp) {
+            return res.status(403).json({ message: "Invalid OTP" });
+        }
+
+        const hashed = bcrypt.hashSync(password, 10);
+
+        await User.updateOne({ email }, { password: hashed });
+        await OTP.deleteMany({ email });
+
+        res.json({ message: "Password updated" });
+
+    } catch {
+        res.status(500).json({ message: "Error changing password" });
+    }
+}
+
+// ================= ADMIN =================
+
+// 🔒 protect these in router with verifyJWT + admin check
+export async function getAllUsers(req, res) {
+    try {
+        const users = await User.find();
+        res.json({ users });
+    } catch {
+        res.status(500).json({ message: "Error fetching users" });
+    }
+}
+
+export async function updateUserRole(req, res) {
+    try {
+        await User.findByIdAndUpdate(req.params.id, {
+            role: req.body.role
+        });
+
+        res.json({ message: "User updated" });
+
+    } catch {
+        res.status(500).json({ message: "Update failed" });
+    }
+}
