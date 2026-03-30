@@ -1,21 +1,24 @@
 import Review from "../models/review.js"
 
-// CREATE REVIEW
 export const createReview = async (req, res) => {
   try {
-    const { productId, customerName, rating, comment } = req.body
+    let { productId, customerName, rating, comment } = req.body
+
+    rating = Number(rating)
 
     if (!productId || !customerName || !rating || !comment) {
-      return res.status(400).json({
-        message: "All fields are required"
-      })
+      return res.status(400).json({ message: "All fields are required" })
     }
+
+    let image = null
+    if (req.file) image = req.file.path
 
     const review = new Review({
       productId,
       customerName,
       rating,
-      comment
+      comment,
+      image
     })
 
     const savedReview = await review.save()
@@ -28,66 +31,34 @@ export const createReview = async (req, res) => {
   } catch (error) {
     console.log(error)
     res.status(500).json({
-      message: "Error creating review"
+      message: error.message || "Error creating review"
     })
   }
 }
 
-
-// ✅ GET ALL REVIEWS
 export const getAllReviews = async (req, res) => {
   try {
     const reviews = await Review.find().sort({ createdAt: -1 })
-
-    res.status(200).json({
-      reviews
-    })
-
+    res.status(200).json({ reviews })
   } catch (error) {
-    console.log(error)
-    res.status(500).json({
-      message: "Error fetching all reviews"
-    })
+    res.status(500).json({ message: "Error fetching reviews" })
   }
 }
 
-
-// GET REVIEWS BY PRODUCT
 export const getReviewsByProduct = async (req, res) => {
   try {
-    const { productId } = req.params
-
-    const reviews = await Review.find({ productId })
-      .sort({ createdAt: -1 })
-
-    res.status(200).json({
-      reviews
-    })
-
-  } catch (error) {
-    console.log(error)
-    res.status(500).json({
-      message: "Error fetching reviews"
-    })
+    const reviews = await Review.find({ productId: req.params.productId })
+    res.status(200).json({ reviews })
+  } catch {
+    res.status(500).json({ message: "Error fetching reviews" })
   }
 }
 
-
-// DELETE REVIEW
 export const deleteReview = async (req, res) => {
   try {
-    const { id } = req.params
-
-    await Review.findByIdAndDelete(id)
-
-    res.status(200).json({
-      message: "Review deleted"
-    })
-
-  } catch (error) {
-    console.log(error)
-    res.status(500).json({
-      message: "Error deleting review"
-    })
+    await Review.findByIdAndDelete(req.params.id)
+    res.json({ message: "Deleted" })
+  } catch {
+    res.status(500).json({ message: "Error deleting review" })
   }
 }

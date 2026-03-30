@@ -1,4 +1,5 @@
 import express from "express"
+import multer from "multer"
 import {
   createReview,
   getAllReviews,
@@ -8,16 +9,17 @@ import {
 
 const router = express.Router()
 
-// CREATE
-router.post("/", createReview)
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) =>
+    cb(null, Date.now() + "-" + file.originalname)
+})
 
-// ✅ IMPORTANT FIX
+const upload = multer({ storage })
+
+router.post("/", upload.single("image"), createReview)
 router.get("/", getAllReviews)
-
-// PRODUCT REVIEWS
 router.get("/:productId", getReviewsByProduct)
-
-// DELETE
 router.delete("/:id", deleteReview)
 
 export default router
